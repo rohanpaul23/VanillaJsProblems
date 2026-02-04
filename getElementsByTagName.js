@@ -1,29 +1,48 @@
+/**
+ * getElementsByTagName
+ * -------------------
+ * Mimics a very basic version of document.getElementsByTagName.
+ *
+ * NOTE:
+ * - This implementation returns a static Array (NOT a live HTMLCollection).
+ * - It traverses the DOM tree manually using recursion.
+ * - Matching is case-insensitive.
+ * - Search starts from document.body.
+ *
+ * @param {string} tagName - The tag name to search for (e.g. "div", "p")
+ * @returns {HTMLElement[]} An array of matched elements
+ */
 function getElementsByTagName(tagName) {
-  // Validate input: tagName must be a string
-  if (typeof tagName !== 'string') {
-    throw new TypeError('getElementsByTagName expects a string tag name');
+  // Array to store all matching elements
+  const elements = [];
+
+  /**
+   * Recursive helper function to traverse the DOM tree
+   *
+   * @param {Node} ele - Current DOM node being visited
+   */
+  function getElement(ele) {
+    // Check if the current node is an element node
+    // and whether its tagName matches the required tagName
+    if (
+      ele.tagName &&
+      ele.tagName.toUpperCase() === tagName.toUpperCase()
+    ) {
+      // If matched, add the element to the result array
+      elements.push(ele);
+    }
+
+    // Recursively traverse all child nodes of the current node
+    // childNodes includes element, text, and comment nodes
+    for (var i = 0; i < ele.childNodes.length; i++) {
+      getElement(ele.childNodes[i]);
+    }
   }
 
-  /**
-   * Determine the search context (`ctx`):
-   * - If `this` is an Element (nodeType === 1) or Document (nodeType === 9), search inside it
-   * - Otherwise, default to the global `document`
-   *
-   * Why:
-   * - This makes the function work both like:
-   *     getElementsByTagName('p')                  // searches whole document
-   *     getElementsByTagName.call(element, 'div') // searches inside element's descendants
-   */
-  const ctx =
-    this && (this.nodeType === 1 /* ELEMENT_NODE */ || this.nodeType === 9 /* DOCUMENT_NODE */)
-      ? this
-      : document;
+  // Start traversal from document.body
+  // This ensures all visible DOM elements are searched
+  getElement(document.body);
 
-  /**
-   * Delegate to the native DOM API:
-   * - Preserves browser behavior exactly (case-insensitive tag matching, '*' wildcard)
-   * - Returns a **live HTMLCollection** that updates automatically when DOM changes
-   * - Uses browser's optimized C++ DOM engine internally, making it faster than manual traversal
-   */
-  return ctx.getElementsByTagName(tagName);
+  // Return the collected elements
+  return elements;
 }
