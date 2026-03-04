@@ -1,37 +1,13 @@
 /**
- * =========================================================
- * Problem Statement: Generate a valid CSS selector for a DOM element
- * =========================================================
- *
- * You are given:
- *  - a valid DOM tree root element `root`
- *  - a target DOM element `target` that exists somewhere inside `root`
- *
- * Your task is to generate a **valid CSS selector string** that uniquely
- * targets the `target` element relative to the `root`.
- *
- * Requirements:
- * 1. The selector must be constructed using **direct child selectors (`>`)**
- * 2. Use **tag names** to build the selector path
- * 3. If multiple sibling elements share the same tag name,
- *    use `:nth-of-type(n)` to disambiguate
- * 4. The selector should correctly resolve to the `target` element
- *
- * Examples:
- *
- * Example 1:
- * <div>
- *   <h1>Devtools Tech</h1>
- *   <div>
- *     <p>Subscribe</p>
- *     <a>here</a>
- *   </div>
- * </div>
- *
  * generateSelector(root, target)
- * → "div > div > a"
  *
- * Example 2:
+ * This function generates a CSS selector string that uniquely identifies
+ * the `target` element inside the `root` element.
+ *
+ * The selector is constructed as a path from root → target.
+ *
+ * Example DOM:
+ *
  * <section>
  *   <ul>
  *     <li>Home</li>
@@ -40,103 +16,203 @@
  *   </ul>
  * </section>
  *
- * generateSelector(root, target)
- * → "section > ul > li:nth-of-type(3)"
+ * If:
+ *   root   = <section>
+ *   target = <li>Product</li>
+ *
+ * The generated selector will be:
+ *
+ *   "section > ul > li:nth-child(3)"
+ *
+ * This selector can then be used like:
+ *
+ *   document.querySelector(selector)
+ *
+ * which will return the target element.
  */
 
-// DO NOT CHANGE FUNCTION NAME
 function generateSelector(root, target) {
-  'use strict';
-
-  // Basic validation
-  if (!root || !target) return '';
-
-  // If root and target are the same, selector is just the root tag
-  if (root === target) {
-    return root.tagName.toLowerCase();
-  }
-
-  // Ensure target is actually inside root
-  if (!root.contains(target)) return '';
 
   /**
-   * We will build the selector from the target → root,
-   * then reverse it at the end.
+   * `parts` will store pieces of the selector path.
    *
-   * Example:
-   *   target = <a>
-   *   parts = ["a", "div", "div"]
-   *   final selector = "div > div > a"
+   * Example while building:
+   * parts = [
+   *   "section",
+   *   "ul",
+   *   "li:nth-child(3)"
+   * ]
+   *
+   * Later we join them with " > " to form:
+   *
+   * section > ul > li:nth-child(3)
    */
   const parts = [];
-  let node = target;
 
   /**
-   * Walk upwards in the DOM tree until we reach the root.
-   * At each step, determine how to uniquely identify the node
-   * among its siblings.
+   * Start from the target element.
+   *
+   * We will move upwards in the DOM tree until we reach the root.
+   */
+  let node = target;
+
+
+  /**
+   * Continue walking upward in the DOM tree
+   * until we reach the root element.
+   *
+   * node !== root ensures we stop when we hit root.
    */
   while (node && node !== root) {
-    const parent = node.parentElement;
-    if (!parent) break;
-
-    const tagName = node.tagName.toLowerCase();
 
     /**
-     * ---------------------------------------------------------
-     * Determine whether `:nth-of-type()` is required
-     * ---------------------------------------------------------
-     *
-     * CSS `:nth-of-type(n)` counts only siblings
-     * with the SAME tag name.
+     * Get the parent element of the current node.
      *
      * Example:
-     * <ul>
-     *   <li></li>   ← nth-of-type(1)
-     *   <div></div>
-     *   <li></li>   ← nth-of-type(2)
-     * </ul>
+     * node   = <li>
+     * parent = <ul>
      */
-
-    const sameTagSiblings = [];
-
-    // Start from the first element child (ignores text nodes)
-    let child = parent.firstElementChild;
-
-    // Traverse all element siblings
-    while (child) {
-      // Only count siblings with the same tag name
-      if (child.tagName === node.tagName) {
-        sameTagSiblings.push(child);
-      }
-
-      // Move to the next sibling element
-      child = child.nextElementSibling;
-    }
+    const parent = node.parentElement;
 
     /**
-     * If there is more than one sibling with the same tag,
-     * we must use `:nth-of-type(n)` to uniquely identify this node.
+     * Convert the tag name to lowercase.
+     *
+     * DOM returns tag names in uppercase (LI, UL, SECTION)
+     * but CSS selectors typically use lowercase.
      */
-    if (sameTagSiblings.length > 1) {
-      // nth-of-type is 1-based
-      const index = sameTagSiblings.indexOf(node) + 1;
-      parts.push(`${tagName}:nth-of-type(${index})`);
+    const tag = node.tagName.toLowerCase();
+
+
+    /**
+     * If parent does not exist, break the loop.
+     * (This usually means we reached the top of the DOM.)
+     */
+    if (!parent) break;
+
+
+    /**
+     * parent.children returns an HTMLCollection
+     * of all ELEMENT children of the parent.
+     *
+     * It ignores text nodes and comments.
+     *
+     * Example for <ul>:
+     *
+     * children = [
+     *   <li>Home</li>,
+     *   <li>Services</li>,
+     *   <li>Product</li>
+     * ]
+     *
+     * We convert it to a real array so we can use
+     * array methods like indexOf().
+     */
+    const siblings = Array.from(parent.children);
+
+
+    /**
+     * If there is ONLY ONE child under the parent,
+     * then the tag name itself uniquely identifies the node.
+     *
+     * Example:
+     *
+     * <div>
+     *   <ul></ul>
+     * </div>
+     *
+     * Since there is only one <ul>, we can simply use:
+     *
+     *   "ul"
+     */
+    if (siblings.length === 1) {
+
+      /**
+       * unshift() adds elements at the BEGINNING of the array.
+       *
+       * We use unshift because we are building the selector
+       * from bottom → top (target → root).
+       *
+       * Later this naturally becomes root → target order.
+       */
+      parts.unshift(tag);
+
     } else {
-      // Tag name alone is sufficient
-      parts.push(tagName);
+
+      /**
+       * If there are multiple siblings,
+       * just using the tag name would not uniquely identify the element.
+       *
+       * Example:
+       *
+       * <ul>
+       *   <li>Home</li>
+       *   <li>Services</li>
+       *   <li>Product</li>
+       * </ul>
+       *
+       * If target = Product, just "li" is not enough.
+       *
+       * We must use :nth-child(index).
+       */
+
+
+      /**
+       * Find the index of the node among its siblings.
+       *
+       * indexOf returns 0-based index.
+       */
+      const index = siblings.indexOf(node) + 1;
+
+
+      /**
+       * CSS nth-child() uses 1-based indexing,
+       * so we add +1.
+       *
+       * Example:
+       *
+       * siblings = [Home, Services, Product]
+       *
+       * indexOf(Product) = 2
+       *
+       * nth-child(3)
+       */
+      parts.unshift(`${tag}:nth-child(${index})`);
     }
 
-    // Move up the DOM tree
+
+    /**
+     * Move one level up in the DOM tree.
+     *
+     * Example progression:
+     *
+     * li → ul → section
+     */
     node = parent;
   }
 
-  // Finally include the root tag name
-  parts.push(root.tagName.toLowerCase());
 
   /**
-   * We built the selector from bottom → top,
-   * so reverse to get root → target order
+   * If we successfully reached the root,
+   * add the root tag to the selector.
+   *
+   * Example:
+   * "section"
    */
-  return parts.reverse().join(' > ');
+  if (node === root) {
+    parts.unshift(root.tagName.toLowerCase());
+  }
+
+
+  /**
+   * Join all selector parts using " > ".
+   *
+   * Example:
+   *
+   * ["section", "ul", "li:nth-child(3)"]
+   *
+   * becomes
+   *
+   * "section > ul > li:nth-child(3)"
+   */
+  return parts.join(" > ");
 }
